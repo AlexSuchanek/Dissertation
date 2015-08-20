@@ -248,24 +248,24 @@ all.data.long[Alternative=="Car/van driver" & DisabledDriver %in% c(0,1,2) & IsC
 
 ## Predicted litres/100km
 
-all.data[Mode=="Car/van driver" & is.na(VehicleID)==FALSE, FuelConsumption:=predict.lm(size.efficiency.reg, newdata=all.data[Mode=="Car/van driver" & is.na(VehicleID)==FALSE,]) ]
-all.data[Mode=="Car/van driver" & FuelType=="Petrol", Price:=Distance*1.609334/100*FuelConsumption*PetrolPrice]
-all.data[Mode=="Car/van driver" & FuelType=="Diesel", Price:=Distance*1.609334/100*FuelConsumption*DieselPrice]
+all.data.long[Alternative=="Car/van driver" & is.na(VehicleID)==FALSE, FuelConsumption:=predict.lm(size.efficiency.reg, newdata=all.data.long[Alternative=="Car/van driver" & is.na(VehicleID)==FALSE,]) ]
+all.data.long[Alternative=="Car/van driver" & FuelType=="Petrol", Price:=exp(LogDistance)*1.609334/100*FuelConsumption*PetrolPrice]
+all.data.long[Alternative=="Car/van driver" & FuelType=="Diesel", Price:=exp(LogDistance)*1.609334/100*FuelConsumption*DieselPrice]
 
-plot(density(all.data[FuelType=="Petrol" & Mode == "Car/van driver", Price/100], to=10))
-lines(density(all.data[FuelType=="Diesel" & Mode == "Car/van driver", Price/100], to=10))
+plot(density(all.data.long[FuelType=="Petrol" & Alternative == "Car/van driver", Price/100], to=10))
+lines(density(all.data.long[FuelType=="Diesel" & Alternative == "Car/van driver", Price/100], to=10))
 ## we know full consumption per l/100km
 ## we know the cost per litre
 
 # Add to data.long as well.
-
-fuel.pred <-  all.data[Mode=="Car/van driver" & is.na(Price)==FALSE, .(Price, VehicleID, TripID)]
-setnames(fuel.pred, "Price", "JourneyPrice")
-all.data.long <- merge(all.data.long, fuel.pred, by=c("VehicleID", "TripID"), all.x=TRUE)
-all.data.long[Alternative=="Car/van driver" & IsChosenAlternative==1, Price:=JourneyPrice]
-all.data.long[,JourneyPrice:=NULL]
-
-all.data.long[Alternative=="Car/van driver" & is.na(VehicleID)==FALSE & IsChosenAlternative==0, Price:=predict.lm(size.efficiency.reg, newdata=all.data.long[Alternative=="Car/van driver" & is.na(VehicleID)==FALSE & IsChosenAlternative==0,])]
+# 
+# fuel.pred <-  all.data[Mode=="Car/van driver" & is.na(Price)==FALSE, .(Price, VehicleID, TripID)]
+# setnames(fuel.pred, "Price", "JourneyPrice")
+# all.data.long <- merge(all.data.long, fuel.pred, by=c("VehicleID", "TripID"), all.x=TRUE)
+# all.data.long[Alternative=="Car/van driver" & IsChosenAlternative==1, Price:=JourneyPrice]
+# all.data.long[,JourneyPrice:=NULL]
+# 
+# all.data.long[Alternative=="Car/van driver" & is.na(VehicleID)==FALSE & IsChosenAlternative==0, Price:=predict.lm(size.efficiency.reg, newdata=all.data.long[Alternative=="Car/van driver" & is.na(VehicleID)==FALSE & IsChosenAlternative==0,])]
 
 ########################
 ## Car Passenger Time ##
@@ -315,8 +315,10 @@ rail.price.reg <- glm(formula=Price~Month+DayOfWeek+JourneyTime*LogDistance+Jour
                       +RailReliability+RailFreq+AgeCategory+PSUIDFactor, 
                       family=gaussian, data=all.data[Mode=="Rail",])
 
+table(all.data.long$RailFreq)
+
 rmse.rail.price <- rmse(rail.price.reg)
-table(all.data$RailFreq)
+# table(all.data$RailFreq)
 
 plot(density(all.data[Mode=="Rail" & is.na(Price)==FALSE, Price]))
 lines(density(fitted.values(rail.price.reg)))
@@ -369,7 +371,6 @@ all.data.long[Alternative %in% c("Walk", "Bicycle", "Car/van passenger"), Price:
 
 ## If the prediction doesn't exist then say that alternative was not available ##
 
-all.data.long[is.na(LogTravelTime)==TRUE | is.na(Price)==TRUE, FeasibleAlternative:=0]
 all.data.long <- all.data.long[FeasibleAlternative==1]
 
 ## Keep the residuals for densiuty plots
@@ -422,7 +423,6 @@ rm(fuel.pred, reg.car.data, reg.data.walk)
 # all.data[PSUID==2012000002 & IndividualID==2012000015 & HouseholdID==2012000007 ,.(Mode,Price, TicketType, TicketTripCost)]
 # vehicle.data[HouseholdID==2012000007,]
 
-library(data.table)
 
 # rm(a, all.data.bus, diesel.data, diesel.data.melt, modes, petrol.data, petrol.data.melt, car.time.reg, carp.time.reg, bus.time.reg, bus.price.reg)
 # rm(reg.car.data, reg.data.walk)
@@ -431,9 +431,9 @@ library(data.table)
 
 # Convert car driving price from pence to pounds to get it in line with the other prices
 
-all.data.long[Alternative=="Car/van driver", Price:=Price/100]
 all.data.long[Price<=0, Price:=0]
-all.data.long <- all.data.long[TripID %in% all.data.long[IsChosenAlternative==1,TripID],]
+all.data.long[Alternative=="Car/van driver", Price:=Price/100]
+# all.data.long <- all.data.long[TripID %in% all.data.long[IsChosenAlternative==1,TripID],]
 
 # Test of replacing with means brekaing down on category - this is the best for the moment until the replace PSUID code works
 
@@ -447,7 +447,9 @@ all.data.long <- all.data.long[TripID %in% all.data.long[IsChosenAlternative==1,
 
 # this removes all trip IDs that do not have price and travel time data for each alternative.
 
-all.data.long <- all.data.long[is.na(Price)==TRUE | is.na(LogTravelTime)==TRUE,.(TimeNA =length(is.na(LogTravelTime)==TRUE),PriceNA = length(is.na(Price)==TRUE)), by=TripID]
+incomplete.sets <- all.data.long[is.na(Price)==TRUE | is.na(LogTravelTime)==TRUE,.(TimeNA =length(is.na(LogTravelTime)==TRUE),PriceNA = length(is.na(Price)==TRUE)), by=TripID]
+all.data.long <- all.data.long[!(TripID %in% incomplete.sets$TripID)]
+
 # all.data.long.ss <- unique(all.data.long[!(TripID %in% all.data.long.cc$TripID), TripID])
 # rm(all.data.long.cc)
 
@@ -470,9 +472,9 @@ setnames(all.data.long, "Social class of individuals", "SocialClass")
 setnames(all.data.long, "Household Income Quintiles - Diary Sample 2012", "IncomeQuintiles")
 setnames(all.data.long, "Mobility difficulties summary", "Mobility")
 
-all.data.long.ss[,SocialClass:=factor(SocialClass)]
-all.data.long.ss[,IncomeQuintiles:=factor(IncomeQuintiles)]
-all.data.long.ss[,Mobility:=factor(Mobility)]
+all.data.long[,SocialClass:=factor(SocialClass)]
+all.data.long[,IncomeQuintiles:=factor(IncomeQuintiles)]
+all.data.long[,Mobility:=factor(Mobility)]
 
 ## remove negative prices
 
@@ -483,7 +485,7 @@ all.data.long.ss[,Mobility:=factor(Mobility)]
 # x <- nrow(all.data.long.ss[Price==0])
 # all.data.long.ss[Price==0, Price:=runif(n=x, min=0, max=0.1)]
 
-all.data.long.ss <- mlogit.data(data=all.data.long.ss[AgeCategory!="5-10",.(TripID, IncomeQuintiles, TripPurpose, AgeCategory, Sex, TravelTime, Price, IsChosenAlternative, DrivingLicence, Minority, Alternative)], 
+all.data.long.ss <- mlogit.data(data=all.data.long[AgeCategory!="5-10",.(TripID, IncomeQuintiles, TripPurpose, AgeCategory, Sex, TravelTime, Price, IsChosenAlternative, DrivingLicense, BicycleOwner, Minority, HHoldNumPeople, Alternative)], 
                                 choice="IsChosenAlternative", 
                                 shape="long", 
                                 alt.var = "Alternative",

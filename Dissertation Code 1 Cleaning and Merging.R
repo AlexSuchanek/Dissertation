@@ -503,17 +503,6 @@ setnames(regions.merge, c("New.Value", "Values.Description"), c("Region", "Regio
 all.data <- merge(all.data, regions.merge, by="Region", all.x=TRUE)
 all.data[,Month:=as.factor(Month)]
 
-## Using the vehicle data to help predict car price data
-
-all.data[,VehicleID.x:=NULL]
-setnames(all.data,"VehicleID.y", "VehicleID")
-vehicle.data <- data.table(read.csv("vehicle.tab", sep="\t", header=TRUE))
-vehicle.data <- vehicle.data[SurveyYear==2012]
-names(vehicle.data) <- replace.colnames(vehicle.data)
-vehicle.data[,PSUID:=NULL]
-vehicle.data[,IndividualID:=NULL]
-all.data <- merge(all.data, vehicle.data, by=c("HouseholdID", "VehicleID"),  all.x=TRUE)
-
 petrol.data <- data.table(read.csv("petrolprices2012.csv", strip.white = TRUE))
 diesel.data <- data.table(read.csv("dieselprices2012.csv", strip.white = TRUE))
 
@@ -524,7 +513,6 @@ diesel.data <- data.table(read.csv("dieselprices2012.csv", strip.white = TRUE))
 vehicle.efficiency.data <- data.table(read.csv("fuelefficiency2012.csv", header=TRUE, stringsAsFactors=FALSE, fileEncoding="latin1"))
 setnames(vehicle.efficiency.data, "Engine.Capacity", "EngineCapacity")
 setnames(vehicle.efficiency.data, "Fuel.Type", "FuelType")
-setnames(all.data, "EngineCap", "EngineCapacity")
 
 # Dropping the non petrol and non diesel cars as they are marginal cases - the trip cost for
 # these alternatives will be different - questions such as charging, do they use fuel all the way ect -- just too
@@ -532,10 +520,6 @@ setnames(all.data, "EngineCap", "EngineCapacity")
 
 vehicle.efficiency.data <- vehicle.efficiency.data[FuelType %in% c("Petrol", "Diesel") ,]
 size.efficiency.reg <- lm(formula=Metric.Combined~EngineCapacity+as.factor(FuelType)-1, data=vehicle.efficiency.data)
-
-all.data[VehPropTypeTS_B01ID==1, FuelType:=1]
-all.data[VehPropTypeTS_B01ID==2, FuelType:=2]
-all.data[,FuelType:=factor(FuelType, levels=c(1,2), labels=c("Petrol", "Diesel"))]
 
 ## Add monthly region petrol and diesel prices 
 ## This requires some changing of the data to match up the regions between the two dataset, although the match is pretty good
@@ -578,14 +562,14 @@ all.data[,LogDistance2:=LogDistance*LogDistance]
 ## Recoding -8, -9, -10 as NA or other where appropriate ##
 
 
-all.data[,c(199:217,324:325,333:336,348:380),with=FALSE]
+# all.data[,c(199:217,324:325,333:336,348:380),with=FALSE]
 
 
-# Recoding to NAs journey time to location variables 
+## Recoding to NAs journey time to location variables ## update - no longer using this so this is no depreciated ##
 
-for (k in 154:162) {
-    set(x=all.data, i=which(all.data[[k]] %in% c(-8,-9,-10)), j=k, value=NA)
-}
+# for (k in 154:162) {
+#     set(x=all.data, i=which(all.data[[k]] %in% c(-8,-9,-10)), j=k, value=NA)
+# }
 
 # Bicycle Ownership
 
@@ -681,7 +665,7 @@ all.data[,RailFreqL:=factor(RailFreq)]
 all.data[RailFreqRate %in% c(-9,8,7), RailFreqRate:=NA]
 all.data[,RailFreqRate:=factor(RailFreqRate)]
 
-all.data[RailReliability %in% c(-9,8,7), RailReliability:=NA]
+all.data[RailReliability==-9, RailReliability:=8]
 all.data[,RailReliability:=factor(RailReliability)]
 
 all.data[is.na(RailOnly), RailOnly:=0]
@@ -710,17 +694,32 @@ rm(all.data.long)
 all.individual <- unique(all.data[,.(PSUID, PSUIDFactor, IndividualID, HouseholdID, BusDifficulties, WalkDifficulties, BusStopWalkDist, BusFreq, BusRel, 
                                      AgeCategory, Sex, WorkStatus, `Household Income Quintiles - Diary Sample 2012`, MaritalStatus, `Social class of individuals`, 
                                      `Mobility difficulties summary`, Region, PavementCond, CycleLanes, RailReliability, RailFreqRate, RailFreq, DisabledDriver, 
-                                     WalkTimeRail, BusTimeRail, DrivingLicense, Minority, BicycleOwner, NumCarVan, UrbanRural)])
+                                     WalkTimeRail, BusTimeRail, DrivingLicense, Minority, BicycleOwner, PetrolPrice, DieselPrice, NumCarVan, HHoldNumPeople, UrbanRural)])
 
+# Get primary vehicle for household
+## Using the vehicle data to help predict car price data
+
+all.data[,VehicleID.x:=NULL]
+setnames(all.data,"VehicleID.y", "VehicleID")
+vehicle.data <- data.table(read.csv("vehicle.tab", sep="\t", header=TRUE))
+vehicle.data <- vehicle.data[SurveyYear==2012]
+names(vehicle.data) <- replace.colnames(vehicle.data)
+vehicle.data[,PSUID:=NULL]
+vehicle.data[,IndividualID:=NULL]
+vehicle.data <- vehicle.data[VehNo==1, .(HouseholdID, VehicleID, EngineCap, VehPropTypeTS_B01ID)] 
+setnames(vehicle.data, "VehPropTypeTS_B01ID", "FuelType")
+vehicle.data[,FuelType:=factor(FuelType, levels=c(1,2), labels=c("Petrol", "Diesel"))]
 
 all.trip <- all.data[,.(Mode, StageID, TripID, JourneyTime, DayOfWeek, DayType, Month, LogDistance, LogTravelTime, 
-                        LogDistance2, TripPurpose, Price, FuelType, EngineCapacity, VehicleID, TicketType)]
-
+                        LogDistance2, TripPurpose, Price, TicketType)]
 
 modes <- data.table(c("Bus", "Walk", "Bicycle", "Car/van driver", "Car/van passenger", "Rail","Taxi"))
 names(modes) <- "Mode"
 
 ## This does not return the right number of rows - investigate further.
+## Need to merge the vehicles again as entries are missing for many
+
+
 
 # utils::View(all.data[Mode=="Car/van driver"])
 
@@ -732,19 +731,25 @@ all.data.long <- merge(all.data.long, all.individual, by=c("PSUID", "IndividualI
 
 all.data.long <- merge(all.data.long, all.trip, by=c("TripID", "StageID"), all.x=TRUE)
 
+all.data.long <- merge(all.data.long, vehicle.data, by="HouseholdID", all.x=TRUE)
+
+
 # View(all.data.long)
 
 setnames(all.data.long, "Mode.x", "Alternative")
 setnames(all.data.long, "Mode.y", "ChosenAlternative")
-
+setnames(all.data.long, "EngineCap", "EngineCapacity")
 all.data.long[,IsChosenAlternative:=0]
 all.data.long[Alternative==ChosenAlternative, IsChosenAlternative:=1]
 all.data.long[,ChosenAlternative:=NULL]
 all.data.long[IsChosenAlternative==0,LogTravelTime:=NA]
+all.data.long[IsChosenAlternative==0,Price:=NA]
 
 rm(all.individual, all.trip, x, modes, i, j, k, new.region.names)
 
 # Save an image of the work enviroment, for quick access later.
 
 save.image("Data.Rda")
+
+
 
