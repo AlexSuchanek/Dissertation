@@ -27,7 +27,7 @@ library(Hmisc)
 #################################
 
 # Function to return all sheets from an excel file
-
+View(data.table(ccr.vector.1))
 read_excel_allsheets <- function(filename) {
         sheets <- readxl::excel_sheets(filename)
         x <- lapply(sheets, function(X) readxl::read_excel(filename, sheet=X))
@@ -311,24 +311,24 @@ trip.stage.data <- trip.stage.data[`Main mode of travel - publication table brea
 
 #####################################################
 
-trip.stage.data[`Trip purpose - full list - 23 categories`<=3 & `Trip purpose to - 23 categories`!=23, TripPurpose:='Commuting or Education']
-trip.stage.data[`Trip purpose - full list - 23 categories` %in% 4:8 & `Trip purpose to - 23 categories`!=23, TripPurpose:='Shopping or Personal Business']
-trip.stage.data[`Trip purpose - full list - 23 categories` %in% 9:18 & `Trip purpose to - 23 categories`!=23, TripPurpose:='Entertainment or Visit Friends']
-trip.stage.data[`Trip purpose - full list - 23 categories` %in% c(19,20,21) & `Trip purpose to - 23 categories`!=23, TripPurpose:='Commuting or Education'] # Escort
-trip.stage.data[`Trip purpose - full list - 23 categories`==22 & `Trip purpose to - 23 categories`!=23, TripPurpose:='Shopping or Personal Business'] # Escort
-trip.stage.data[`Trip purpose - full list - 23 categories`==23 & `Trip purpose to - 23 categories`!=23, TripPurpose:='Entertainment or Visit Friends'] # Escort
-trip.stage.data[`Trip purpose to - 23 categories`==23, TripPurpose:='Return Home']
+trip.stage.data[`Trip purpose - full list - 23 categories`<=3 & `Trip purpose to - 23 categories`!=23, TripPurpose:='CE']
+trip.stage.data[`Trip purpose - full list - 23 categories` %in% 4:8 & `Trip purpose to - 23 categories`!=23, TripPurpose:='SP']
+trip.stage.data[`Trip purpose - full list - 23 categories` %in% 9:18 & `Trip purpose to - 23 categories`!=23, TripPurpose:='EV']
+trip.stage.data[`Trip purpose - full list - 23 categories` %in% c(19,20,21) & `Trip purpose to - 23 categories`!=23, TripPurpose:='CE'] # Escort
+trip.stage.data[`Trip purpose - full list - 23 categories`==22 & `Trip purpose to - 23 categories`!=23, TripPurpose:='SP'] # Escort
+trip.stage.data[`Trip purpose - full list - 23 categories`==23 & `Trip purpose to - 23 categories`!=23, TripPurpose:='EV'] # Escort
+trip.stage.data[`Trip purpose to - 23 categories`==23, TripPurpose:='H']
 trip.stage.data[, TripPurpose:=as.factor(TripPurpose)]
 
 # Journey Location
 
-trip.stage.data[`Trip purpose from - 23 categories`<=3, Location:='Commuting or Education']
-trip.stage.data[`Trip purpose from - 23 categories` %in% 2:8, Location:='Shopping or Personal Business']
-trip.stage.data[`Trip purpose from - 23 categories` %in% 9:16, Location:='Entertainment or Visit Friends']
-trip.stage.data[`Trip purpose from - 23 categories` %in% 17:20, Location:='Commuting or Education'] # Escort
-trip.stage.data[`Trip purpose from - 23 categories`==21, Location:='Shopping or Personal Business'] # Escort
-trip.stage.data[`Trip purpose from - 23 categories`==22, Location:='Entertainment or Visit Friends'] # Escort
-trip.stage.data[`Trip purpose from - 23 categories`==23, Location:='Travelling Home']
+trip.stage.data[`Trip purpose from - 23 categories`<=3, Location:='CE']
+trip.stage.data[`Trip purpose from - 23 categories` %in% 2:8, Location:='SP']
+trip.stage.data[`Trip purpose from - 23 categories` %in% 9:16, Location:='EV']
+trip.stage.data[`Trip purpose from - 23 categories` %in% 17:20, Location:='CE'] # Escort
+trip.stage.data[`Trip purpose from - 23 categories`==21, Location:='SP'] # Escort
+trip.stage.data[`Trip purpose from - 23 categories`==22, Location:='EN'] # Escort
+trip.stage.data[`Trip purpose from - 23 categories`==23, Location:='H']
 trip.stage.data[, TripPurpose:=as.factor(TripPurpose)] 
 
 # Journey Time
@@ -367,8 +367,8 @@ trip.stage.data <- trip.stage.data[`Main mode of travel - publication table brea
 trip.stage.data[`Stage mode of travel - publication table breakdown - 13 categories`==8,Mode:="Bus"]
 trip.stage.data[`Stage mode of travel - publication table breakdown - 13 categories`==1,Mode:="Walk"]
 trip.stage.data[`Stage mode of travel - publication table breakdown - 13 categories`==2,Mode:="Bicycle"]
-trip.stage.data[`Stage mode of travel - publication table breakdown - 13 categories`==3,Mode:="Car/van driver"]
-trip.stage.data[`Stage mode of travel - publication table breakdown - 13 categories`==4,Mode:="Car/van passenger"]
+trip.stage.data[`Stage mode of travel - publication table breakdown - 13 categories`==3,Mode:="Car"]
+trip.stage.data[`Stage mode of travel - publication table breakdown - 13 categories`==4,Mode:="Passenger"]
 trip.stage.data[`Stage mode of travel - publication table breakdown - 13 categories`==11,Mode:="Rail"]
 trip.stage.data[`Stage mode of travel - publication table breakdown - 13 categories`==12,Mode:="Taxi"]
 trip.stage.data[,Mode:=factor(Mode)]
@@ -413,12 +413,12 @@ for (i in min(all.data$TravDay):max(all.data$TravDay)) {
         }
 }
 
-# I am removing all car/van passenger journies where multiple people from the same household
+# I am removing all Passenger journies where multiple people from the same household
 # took the same journey. True car van passenger journies are the remaining ones
 
 setnames(all.data, "Day of week trip took place", "DayOfWeek")
-all.data[Mode %in% c("Car/van driver", "Car/van passenger"), NoPeopleTrip:=length(IndividualID), by=.(HouseholdID, DayOfWeek, TripStart, TripEnd)]
-all.data <- all.data[!(Mode=="Car/van passenger" & NoPeopleTrip>1)]
+all.data[Mode %in% c("Car", "Passenger"), NoPeopleTrip:=length(IndividualID), by=.(HouseholdID, DayOfWeek, TripStart, TripEnd)]
+all.data <- all.data[!(Mode=="Passenger" & NoPeopleTrip>1)]
 
 
 # Have Car/Bicycle Dummy Variables - idea behind this is if one has a car or a bike at their current location - will use it on the next stage
@@ -706,14 +706,14 @@ vehicle.data <- vehicle.data[SurveyYear==2012]
 names(vehicle.data) <- replace.colnames(vehicle.data)
 vehicle.data[,PSUID:=NULL]
 vehicle.data[,IndividualID:=NULL]
-vehicle.data <- vehicle.data[VehNo==1, .(HouseholdID, VehicleID, EngineCap, VehPropTypeTS_B01ID)] 
+vehicle.data <- vehicle.data[VehNo==1, .(HouseholdID, VehicleID, EngineCap, VehPropTypeTS_B01ID, VehAnMileage)] 
 setnames(vehicle.data, "VehPropTypeTS_B01ID", "FuelType")
 vehicle.data[,FuelType:=factor(FuelType, levels=c(1,2), labels=c("Petrol", "Diesel"))]
 
 all.trip <- all.data[,.(Mode, StageID, TripID, JourneyTime, DayOfWeek, DayType, Month, LogDistance, LogTravelTime, 
                         LogDistance2, TripPurpose, Price, TicketType)]
 
-modes <- data.table(c("Bus", "Walk", "Bicycle", "Car/van driver", "Car/van passenger", "Rail","Taxi"))
+modes <- data.table(c("Bus", "Walk", "Bicycle", "Car", "Passenger", "Rail","Taxi"))
 names(modes) <- "Mode"
 
 ## This does not return the right number of rows - investigate further.
@@ -721,7 +721,7 @@ names(modes) <- "Mode"
 
 
 
-# utils::View(all.data[Mode=="Car/van driver"])
+# utils::View(all.data[Mode=="Car"])
 
 x <- all.data[,.(IndividualID, HouseholdID, TripID, PSUID, StageID)]
 
@@ -747,8 +747,23 @@ all.data.long[IsChosenAlternative==0,Price:=NA]
 
 rm(all.individual, all.trip, x, modes, i, j, k, new.region.names)
 
-# Save an image of the work enviroment, for quick access later.
+# Vehicle Fixed Costs
 
+all.data.long[VehAnMileage>=0 & VehAnMileage<=5000 & FuelType=="Petrol", VehFixedCosts:=1.25326 ]
+all.data.long[VehAnMileage>5000 & VehAnMileage<=10000 & FuelType=="Petrol", VehFixedCosts:=.63402 ]
+all.data.long[VehAnMileage>10000 & VehAnMileage<=15000 & FuelType=="Petrol", VehFixedCosts:=0.43324 ]
+all.data.long[VehAnMileage>15000 & VehAnMileage<=20000 & FuelType=="Petrol", VehFixedCosts:=0.33656 ]
+all.data.long[VehAnMileage>20000 & VehAnMileage<=25000 & FuelType=="Petrol", VehFixedCosts:=0.27232 ]
+all.data.long[VehAnMileage>25000  & FuelType=="Petrol", VehFixedCosts:=0.22822 ]
+
+all.data.long[VehAnMileage>=0 & VehAnMileage<=5000 & FuelType=="Diesel", VehFixedCosts:=1.13342 ]
+all.data.long[VehAnMileage>5000 & VehAnMileage<=10000 & FuelType=="Diesel", VehFixedCosts:=0.57392 ]
+all.data.long[VehAnMileage>10000 & VehAnMileage<=15000 & FuelType=="Diesel", VehFixedCosts:=0.39222 ]
+all.data.long[VehAnMileage>15000 & VehAnMileage<=20000 & FuelType=="Diesel", VehFixedCosts:=0.30496 ]
+all.data.long[VehAnMileage>20000 & VehAnMileage<=25000 & FuelType=="Diesel", VehFixedCosts:=0.24688 ]
+all.data.long[VehAnMileage>25000  & FuelType=="Diesel", VehFixedCosts:=0.2069 ]
+
+# Save an image of the work enviroment, for quick access later.
 save.image("Data.Rda")
 
 

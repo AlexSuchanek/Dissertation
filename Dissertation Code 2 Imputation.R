@@ -24,7 +24,7 @@ library(car)
 
 all.data.long[,FeasibleAlternative:=1]
 all.data.long[IsChosenAlternative==0 & Alternative=="Bicycle" & BicycleOwner==0, FeasibleAlternative:=0]
-all.data.long[IsChosenAlternative==0 & Alternative=="Car/van driver" & (DrivingLicense ==0 | NumCarVan==0), FeasibleAlternative:=0]
+all.data.long[IsChosenAlternative==0 & Alternative=="Car" & (DrivingLicense ==0 | NumCarVan==0 | is.na(VehicleID)==TRUE), FeasibleAlternative:=0]
 
 ################
 ## Imputation ##
@@ -74,6 +74,11 @@ bus.time.reg <- lm(formula=LogTravelTime~TripPurpose+Month+DayType+DayOfWeek+Log
                     BusStopWalkDist+BusDifficulties+WalkDifficulties+Sex+JourneyTime+BusFreq+PSUIDFactor, 
                     family=gaussian, data=all.data[Mode=="Bus"])
 
+
+imputereg1 <- npregbw(formula=LogTravelTime~TripPurpose+Month+DayType+DayOfWeek+LogDistance+LogDistance2+BusRel+
+            BusStopWalkDist+BusDifficulties+WalkDifficulties+Sex+JourneyTime+BusFreq+PSUIDFactor, 
+        data=all.data[Mode=="Bus"], ckert="epanechnikov")
+
 rmse.bus.time <- rmse(bus.time.reg)
 
 # all.data[Mode=="Bus",PredictedTime:=Time]
@@ -99,13 +104,22 @@ lines(density(all.data[Mode=="Bus",Time],to=200))
 # 
 # ggplot() + aes(x=`Travel Time (Minutes)`) + labs(title="Predicted Travel Time Distribution") + ylab("Density") + geom_density(data=ctf, linetype=4) + geom_density(data=btf)
 # 
-# ggplot(data=all.data) + aes(x=Time) + geom_density(data=all.data[Mode=="Bus"]) + geom_density(data=all.data[Mode=="Car/van driver"])
+# ggplot(data=all.data) + aes(x=Time) + geom_density(data=all.data[Mode=="Bus"]) + geom_density(data=all.data[Mode=="Car"])
 
 # Some of the factors are not present in the top 
 
 all.data.long[PSUIDFactor %in% model.frame(bus.time.reg)$PSUIDFactor & Alternative=="Bus" & IsChosenAlternative==0,
               LogTravelTime:=predict.glm(object=bus.time.reg, newdata=all.data.long[PSUIDFactor %in% model.frame(bus.time.reg)$PSUIDFactor & Alternative=="Bus" & IsChosenAlternative==0,])]
 
+# bus.time.reg2 <- lm(formula=LogTravelTime~TripPurpose+Month+DayType+DayOfWeek+LogDistance+LogDistance2+BusRel+
+#                        BusStopWalkDist+BusDifficulties+WalkDifficulties+Sex+JourneyTime+BusFreq+Region, 
+#                    family=gaussian, data=all.data[Mode=="Bus"])
+# 
+# 
+# all.data.long[!(PSUIDFactor %in% model.frame(bus.time.reg)$PSUIDFactor) & Alternative=="Bus" & IsChosenAlternative==0,
+#               LogTravelTime:=predict.glm(object=bus.time.reg2, newdata=all.data.long[!(PSUIDFactor %in% model.frame(bus.time.reg)$PSUIDFactor) & Alternative=="Bus" & IsChosenAlternative==0,])]
+# 
+# rm(bus.time.reg2)
 
 # all.data.long[PSUIDFactor %in% model.frame(bus.time.reg)$PSUIDFactor & Alternative=="Bus" & IsChosenAlternative==0,]
 # Check for multicollinearity between variables
@@ -118,7 +132,7 @@ all.data.long[PSUIDFactor %in% model.frame(bus.time.reg)$PSUIDFactor & Alternati
 ## Bus Price ##  
 ###############
 
-bus.price.reg <- glm(formula=Price~Month+DayOfWeek+BusFreq+BusRel+JourneyTime+LogDistance+LogDistance2+AgeCategory+WorkStatus+PSUIDFactor, 
+bus.price.reg <- glm(formula=Price~Month+DayOfWeek+BusFreq+JourneyTime+LogDistance+LogDistance2+AgeCategory+WorkStatus+PSUIDFactor, 
                     data=all.data[Mode=="Bus" & Concession==0 & TicketType %in% 0:4],family=gaussian)
 
 # Adding predicted values to the long form matrix
@@ -147,12 +161,21 @@ rmse.bus.price <- rmse(bus.price.reg)
 # all.data[Mode=="Bus" & as.numeric(TicketType)>=4, PredictedBusPrice:=0]
 
 plot(density(all.data[Mode=="Bus" & Concession==0 & as.numeric(TicketType)<4 & Price>0 ,na.omit(Price)]))
-lines(density((fitted.values(bus.price.reg)), kernel="epanechnikov"))
+# lines(density(exp(bus.time.reg.fitted), kernel="epanechnikov"))
 
 # bus.price.cse <- cluster.bs.glm(mod=bus.price.reg, dat=all.data[Mode=="Bus"], cluster=~IndividualID, boot.reps=1)
 # If price is negative set to zero not many cases less than 1%
 
 # all.data.long[Alternative=="Bus" & IsChosenAlternative==0 & Price<=0,Price:=0]
+
+# bus.price.reg2 <- glm(formula=Price~Month+DayOfWeek+BusFreq+JourneyTime+LogDistance+LogDistance2+AgeCategory+WorkStatus+Region, 
+#                      data=all.data[Mode=="Bus" & Concession==0 & TicketType %in% 0:4],family=gaussian)
+# 
+# all.data.long[!(PSUIDFactor %in% model.frame(bus.price.reg)$PSUIDFactor) & Alternative=="Bus" & IsChosenAlternative==0,
+#               Price:=predict.glm(object=bus.price.reg2, 
+#                                  newdata=all.data.long[!(PSUIDFactor %in% model.frame(bus.price.reg)$PSUIDFactor) & Alternative=="Bus" & IsChosenAlternative==0,])]
+# 
+# rm(bus.price.reg2)
 
 ###############
 ## Walk Time ##
@@ -186,6 +209,14 @@ all.data.long[PSUIDFactor %in% model.frame(walk.time.reg)$PSUIDFactor & Alternat
                                        newdata=all.data.long[PSUIDFactor %in% model.frame(walk.time.reg)$PSUIDFactor &  Alternative=="Walk" & IsChosenAlternative==0,])]
 
 
+# walk.time.reg2 <- glm(formula=LogTravelTime~TripPurpose+LogDistance+AgeCategory*LogDistance
+#                      +Sex*LogDistance+AgeCategory*LogDistance2+Sex*LogDistance2+WalkDifficulties+Region, family=gaussian, data=all.data[Mode=="Walk"])
+# 
+# all.data.long[!(PSUIDFactor %in% model.frame(walk.time.reg)$PSUIDFactor) & Alternative=="Walk" & IsChosenAlternative==0,
+#               LogTravelTime:=predict.glm(object=walk.time.reg2, 
+#                                          newdata=all.data.long[!(PSUIDFactor %in% model.frame(walk.time.reg)$PSUIDFactor) &  Alternative=="Walk" & IsChosenAlternative==0,])]
+# 
+# rm(walk.time.reg2)
 ################
 ## Cycle Time ##
 ################
@@ -208,6 +239,16 @@ lines(density(exp(fitted.values(bicycle.time.reg))*exp(0.5*rmse.bicycle.time^2))
 all.data.long[PSUIDFactor %in% model.frame(bicycle.time.reg)$PSUIDFactor & Alternative=="Bicycle" & IsChosenAlternative==0, 
               LogTravelTime:=predict.glm(bicycle.time.reg, newdata=all.data.long[PSUIDFactor %in% model.frame(bicycle.time.reg)$PSUIDFactor & Alternative=="Bicycle" & IsChosenAlternative==0,])]
 
+# bicycle.time.reg2 <- glm(formula=LogTravelTime~TripPurpose+Month+DayOfWeek+JourneyTime+PavementCond+CycleLanes+AgeCategory+Sex
+#                         +Region+AgeCategory*LogDistance+Sex*LogDistance+AgeCategory*LogDistance2+Sex*LogDistance2
+#                         , family=gaussian, data=all.data[Mode=="Bicycle",])
+# 
+# 
+# all.data.long[!(PSUIDFactor %in% model.frame(bicycle.time.reg)$PSUIDFactor) & Alternative=="Bicycle" & IsChosenAlternative==0, 
+#               LogTravelTime:=predict.glm(bicycle.time.reg2, newdata=all.data.long[!(PSUIDFactor %in% model.frame(bicycle.time.reg)$PSUIDFactor) & Alternative=="Bicycle" & IsChosenAlternative==0,])]
+# 
+# rm(bicycle.time.reg2)
+
 # bicycle.time.cse <- cluster.bs.glm(mod=bicycle.time.reg, dat=all.data[Mode=="Bicycle"], cluster=~IndividualID, report=TRUE)
 
 ##################
@@ -215,14 +256,10 @@ all.data.long[PSUIDFactor %in% model.frame(bicycle.time.reg)$PSUIDFactor & Alter
 ##################
 
 car.time.reg <- lm(formula=LogTravelTime~TripPurpose*LogDistance+Month*LogDistance+DayOfWeek+DayType+JourneyTime*LogDistance+
-                      JourneyTime*LogDistance2+DisabledDriver+PSUIDFactor*LogDistance, data=all.data[Mode=="Car/van driver"])
-
-summary(car.time.reg)
-
-alias(car.time.reg)
+                      JourneyTime*LogDistance2+DisabledDriver+PSUIDFactor*LogDistance, data=all.data[Mode=="Car"])
 
 car.time.rmse <- rmse(car.time.reg)
-reg.car.data <- cbind(all.data[Mode=="Car/van driver",.(IndividualID, StageID, TripID)][as.numeric(names(car.time.reg$fitted.values))], fitted(car.time.reg))
+reg.car.data <- cbind(all.data[Mode=="Car",.(IndividualID, StageID, TripID)][as.numeric(names(car.time.reg$fitted.values))], fitted(car.time.reg))
 names(reg.data.walk)[4] <- "PredictedCarDriverTime"
 all.data <- merge(all.data, reg.data.walk, by=c("IndividualID", "StageID", "TripID"), all.x=TRUE)
 
@@ -233,12 +270,12 @@ all.data <- merge(all.data, reg.data.walk, by=c("IndividualID", "StageID", "Trip
 # all.data[6*Distance/Time>70, TimeTest:=6*Distance/70]
 
 plot(density(exp(fitted.values(car.time.reg))*exp(0.5*car.time.rmse^2),bw=2 ,to=100))
-lines(density(all.data[Mode=="Car/van driver",Time]))
+lines(density(all.data[Mode=="Car",Time]))
 
 # there are two factors in disabled driver 3 and 4 which mean than the person doesnt drive any more so they will never choose to driver as a mode, also an issue with aliased coefficients
 
-all.data.long[Alternative=="Car/van driver" & DisabledDriver %in% c(0,1,2) & IsChosenAlternative==0 & PSUIDFactor %in% model.frame(car.time.reg)$PSUIDFactor , 
-              LogTravelTime:=predict.glm(car.time.reg, newdata=all.data.long[Alternative=="Car/van driver" & DisabledDriver %in% c(0,1,2) & IsChosenAlternative==0 & PSUIDFactor %in% model.frame(car.time.reg)$PSUIDFactor,])]
+all.data.long[Alternative=="Car" & DisabledDriver %in% c(0,1,2) & IsChosenAlternative==0 & PSUIDFactor %in% model.frame(car.time.reg)$PSUIDFactor , 
+              LogTravelTime:=predict.glm(car.time.reg, newdata=all.data.long[Alternative=="Car" & DisabledDriver %in% c(0,1,2) & IsChosenAlternative==0 & PSUIDFactor %in% model.frame(car.time.reg)$PSUIDFactor,])]
 
 # car.time.cse <- cluster.bs.glm(mod=car.time.reg, data=all.data.car, cluster=~IndividualID, report=TRUE)
 
@@ -248,24 +285,24 @@ all.data.long[Alternative=="Car/van driver" & DisabledDriver %in% c(0,1,2) & IsC
 
 ## Predicted litres/100km
 
-all.data.long[Alternative=="Car/van driver" & is.na(VehicleID)==FALSE, FuelConsumption:=predict.lm(size.efficiency.reg, newdata=all.data.long[Alternative=="Car/van driver" & is.na(VehicleID)==FALSE,]) ]
-all.data.long[Alternative=="Car/van driver" & FuelType=="Petrol", Price:=exp(LogDistance)*1.609334/100*FuelConsumption*PetrolPrice]
-all.data.long[Alternative=="Car/van driver" & FuelType=="Diesel", Price:=exp(LogDistance)*1.609334/100*FuelConsumption*DieselPrice]
+all.data.long[Alternative=="Car" & is.na(VehicleID)==FALSE, FuelConsumption:=predict.lm(size.efficiency.reg, newdata=all.data.long[Alternative=="Car" & is.na(VehicleID)==FALSE,]) ]
+all.data.long[Alternative=="Car" & FuelType=="Petrol", Price:=exp(LogDistance)*1.609334/100*FuelConsumption*(PetrolPrice)]
+all.data.long[Alternative=="Car" & FuelType=="Diesel", Price:=exp(LogDistance)*1.609334/100*FuelConsumption*(DieselPrice)]
 
-plot(density(all.data.long[FuelType=="Petrol" & Alternative == "Car/van driver", Price/100], to=10))
-lines(density(all.data.long[FuelType=="Diesel" & Alternative == "Car/van driver", Price/100], to=10))
+plot(density(all.data.long[FuelType=="Petrol" & Alternative == "Car", Price/100], to=10))
+lines(density(all.data.long[FuelType=="Diesel" & Alternative == "Car", Price/100], to=10))
 ## we know full consumption per l/100km
 ## we know the cost per litre
 
 # Add to data.long as well.
 # 
-# fuel.pred <-  all.data[Mode=="Car/van driver" & is.na(Price)==FALSE, .(Price, VehicleID, TripID)]
+# fuel.pred <-  all.data[Mode=="Car" & is.na(Price)==FALSE, .(Price, VehicleID, TripID)]
 # setnames(fuel.pred, "Price", "JourneyPrice")
 # all.data.long <- merge(all.data.long, fuel.pred, by=c("VehicleID", "TripID"), all.x=TRUE)
-# all.data.long[Alternative=="Car/van driver" & IsChosenAlternative==1, Price:=JourneyPrice]
+# all.data.long[Alternative=="Car" & IsChosenAlternative==1, Price:=JourneyPrice]
 # all.data.long[,JourneyPrice:=NULL]
 # 
-# all.data.long[Alternative=="Car/van driver" & is.na(VehicleID)==FALSE & IsChosenAlternative==0, Price:=predict.lm(size.efficiency.reg, newdata=all.data.long[Alternative=="Car/van driver" & is.na(VehicleID)==FALSE & IsChosenAlternative==0,])]
+# all.data.long[Alternative=="Car" & is.na(VehicleID)==FALSE & IsChosenAlternative==0, Price:=predict.lm(size.efficiency.reg, newdata=all.data.long[Alternative=="Car" & is.na(VehicleID)==FALSE & IsChosenAlternative==0,])]
 
 ########################
 ## Car Passenger Time ##
@@ -274,17 +311,25 @@ lines(density(all.data.long[FuelType=="Diesel" & Alternative == "Car/van driver"
 ## can justify bandwidth smoothing due to people recording travel time in a non-continous manner
 
 carp.time.reg <- glm(formula=LogTravelTime~TripPurpose*LogDistance+Month*LogDistance+DayOfWeek+DayType+JourneyTime*LogDistance+
-                       JourneyTime*LogDistance2+Region*LogDistance+Region*LogDistance2+PSUIDFactor, dat=all.data[Mode=="Car/van passenger"], family=gaussian)
+                       JourneyTime*LogDistance2+Region*LogDistance+Region*LogDistance2+PSUIDFactor, dat=all.data[Mode=="Passenger"], family=gaussian)
 
 rmse.carp <- rmse(carp.time.reg)
 
 plot(density(exp(fitted.values(carp.time.reg))*exp(0.5*rmse.carp^2),bw=4, to=200))
-lines(density(all.data[Mode=="Car/van passenger" & Time>0,Time], to=200, bw=4))
+lines(density(all.data[Mode=="Passenger" & Time>0,Time], to=200, bw=4))
 
 ## Rank deficient 
 
-all.data.long[Alternative=="Car/van passenger" & IsChosenAlternative==0 & PSUIDFactor %in% model.frame(carp.time.reg)$PSUIDFactor, 
-              LogTravelTime:=predict.glm(carp.time.reg, newdata=all.data.long[PSUIDFactor %in% model.frame(carp.time.reg)$PSUIDFactor & Alternative=="Car/van passenger" & IsChosenAlternative==0,])]
+all.data.long[Alternative=="Passenger" & IsChosenAlternative==0 & PSUIDFactor %in% model.frame(carp.time.reg)$PSUIDFactor, 
+              LogTravelTime:=predict.glm(carp.time.reg, newdata=all.data.long[PSUIDFactor %in% model.frame(carp.time.reg)$PSUIDFactor & Alternative=="Passenger" & IsChosenAlternative==0,])]
+
+# carp.time.reg2 <- glm(formula=LogTravelTime~TripPurpose*LogDistance+Month*LogDistance+DayOfWeek+DayType+JourneyTime*LogDistance+
+#                          JourneyTime*LogDistance2+Region*LogDistance+Region*LogDistance2+Region, dat=all.data[Mode=="Passenger"], family=gaussian)
+# 
+# all.data.long[Alternative=="Passenger" & IsChosenAlternative==0 & !(PSUIDFactor %in% model.frame(carp.time.reg)$PSUIDFactor), 
+#               LogTravelTime:=predict.glm(carp.time.reg2, newdata=all.data.long[!(PSUIDFactor %in% model.frame(carp.time.reg)$PSUIDFactor) & Alternative=="Passenger" & IsChosenAlternative==0,])]
+# 
+# rm(carp.time.reg2)
 
 # carp.time.cse <- cluster.bs.glm(mod=carp.time.reg, data=all.data.carp, cluster=~IndividualID, report=TRUE)
 
@@ -293,20 +338,34 @@ all.data.long[Alternative=="Car/van passenger" & IsChosenAlternative==0 & PSUIDF
 ######################
 
 rail.time.reg <- glm(formula=LogTravelTime~TripPurpose+Month+DayOfWeek+DayType+JourneyTime*LogDistance+Region*LogDistance
-                     +WalkTimeRail+BusTimeRail+RailFreqRate+RailReliability+PSUIDFactor, data=all.data[Mode=="Rail",], family=gaussian)
+                     +WalkTimeRail+BusTimeRail+RailReliability+PSUIDFactor, data=all.data[Mode=="Rail",], family=gaussian)
 
 rmse.rail.time <- rmse(rail.time.reg)
 
 plot(density(all.data[Mode=="Rail", Time]))
 lines(density(exp(fitted.values(rail.time.reg))*exp(0.5*rmse.rail.time^2)))
 
-all.data.long[Alternative=="Rail" & IsChosenAlternative==0 & RailFreqRate!=6 & PSUIDFactor %in% model.frame(rail.time.reg)$PSUIDFactor, 
+all.data.long[Alternative=="Rail" & IsChosenAlternative==0 & PSUIDFactor %in% model.frame(rail.time.reg)$PSUIDFactor, 
               LogTravelTime:=predict.glm(rail.time.reg, 
                                          newdata=all.data.long[Alternative=="Rail" 
                                                   & IsChosenAlternative==0 
-                                                  & RailFreqRate!=6 
                                                   & PSUIDFactor %in% model.frame(rail.time.reg)$PSUIDFactor,,])]
 
+
+
+
+# 
+# rail.time.reg2 <- glm(formula=LogTravelTime~TripPurpose+Month+DayOfWeek+DayType+JourneyTime*LogDistance+Region*LogDistance
+#                      +WalkTimeRail+BusTimeRail+RailReliability+Region, data=all.data[Mode=="Rail",], family=gaussian)
+# 
+# all.data.long[Alternative=="Rail" & IsChosenAlternative==0 & !(PSUIDFactor %in% model.frame(rail.time.reg)$PSUIDFactor), 
+#               LogTravelTime:=predict.glm(rail.time.reg2, 
+#                                          newdata=all.data.long[Alternative=="Rail" 
+#                                                                & IsChosenAlternative==0 
+#                                                                & !(PSUIDFactor %in% model.frame(rail.time.reg)$PSUIDFactor),,])]
+# 
+# 
+# rm(rail.time.reg2)
 ###############
 ## Rail Cost ##
 ###############
@@ -325,36 +384,47 @@ lines(density(fitted.values(rail.price.reg)))
 
 all.data.long[Alternative=="Rail" 
               & IsChosenAlternative==0 
-              & RailFreqRate!=6 
               & PSUIDFactor %in% model.frame(rail.price.reg)$PSUIDFactor, 
               Price:=predict.glm(rail.price.reg, 
                                  newdata=all.data.long[Alternative=="Rail" 
                                    & IsChosenAlternative==0 
-                                   & RailFreqRate!=6 
                                    & PSUIDFactor %in% model.frame(rail.price.reg)$PSUIDFactor,])]
+
+# rail.price.reg2 <- glm(formula=Price~Month+DayOfWeek+JourneyTime*LogDistance+JourneyTime*LogDistance2
+#                        +RailReliability+RailFreq+AgeCategory+Region, 
+#                        family=gaussian, data=all.data[Mode=="Rail",])
+# 
+# all.data.long[Alternative=="Rail" 
+#               & IsChosenAlternative==0 
+#               & !(PSUIDFactor %in% model.frame(rail.price.reg)$PSUIDFactor), 
+#               Price:=predict.glm(rail.price.reg2, 
+#                                  newdata=all.data.long[Alternative=="Rail" 
+#                                                        & IsChosenAlternative==0 
+#                                                        & !(PSUIDFactor %in% model.frame(rail.price.reg)$PSUIDFactor),])]
 
 ######################
 ## Taxi Travel Time ##
 ######################
 
 taxi.time.reg <- glm(formula=LogTravelTime~TripPurpose*LogDistance+Month*LogDistance+DayOfWeek+JourneyTime*LogDistance
-                     +JourneyTime*LogDistance2+Region*LogDistance+Region*LogDistance2, data=all.data[Mode=="Taxi",], family=gaussian)
+                     +JourneyTime*LogDistance2+Region*LogDistance+Region*LogDistance2+PSUIDFactor, data=all.data[Mode=="Taxi",], family=gaussian)
+
 
 rmse.tax.time <- rmse(taxi.time.reg)
 
 plot(density(exp(fitted.values(taxi.time.reg))*exp(0.5*rmse.tax.time^2)))
 lines(density(all.data[Mode=="Taxi", Time]))
 
-all.data.long[Alternative=="Taxi" & IsChosenAlternative==0, 
+all.data.long[Alternative=="Taxi" & IsChosenAlternative==0 & PSUIDFactor %in% model.frame(taxi.time.reg)$PSUIDFactor, 
               LogTravelTime:=predict.glm(taxi.time.reg, 
-                newdata=all.data.long[Alternative=="Taxi" & IsChosenAlternative==0,])]
+                newdata=all.data.long[Alternative=="Taxi" & IsChosenAlternative==0 & PSUIDFactor %in% model.frame(taxi.time.reg)$PSUIDFactor ,])]
 
 ################
 ## Taxi Price ##
 ################
 
 taxi.price.reg <- glm(formula=Price~Month+DayOfWeek+JourneyTime*LogDistance+
-                          JourneyTime*LogDistance2+Region*LogDistance+Region*LogDistance2,
+                          JourneyTime*LogDistance2+Region*LogDistance+Region*LogDistance2+PSUIDFactor,
                       data=all.data[Mode=="Taxi" & Price>0,])
 
 rmse.taxi.price <- rmse(taxi.price.reg)
@@ -362,14 +432,15 @@ rmse.taxi.price <- rmse(taxi.price.reg)
 plot(density(fitted.values(taxi.price.reg)))
 lines(density(all.data[Mode=="Taxi" & Price>0, Price]))
 
-all.data.long[Alternative=="Taxi" & IsChosenAlternative==0, 
+all.data.long[Alternative=="Taxi" & IsChosenAlternative==0 & PSUIDFactor %in% model.frame(taxi.price.reg)$PSUIDFactor,   
               Price:=predict.glm(taxi.price.reg, 
-              newdata=all.data.long[Alternative=="Taxi" & IsChosenAlternative==0,])]
+              newdata=all.data.long[Alternative=="Taxi" & IsChosenAlternative==0 & PSUIDFactor %in% model.frame(taxi.price.reg)$PSUIDFactor,])]
 
+## Set the price of these alternatives to zero
 
-all.data.long[Alternative %in% c("Walk", "Bicycle", "Car/van passenger"), Price:=0]
+all.data.long[Alternative %in% c("Walk", "Bicycle", "Passenger"), Price:=0]
 
-## If the prediction doesn't exist then say that alternative was not available ##
+## Keep the feasible set of alternatives 
 
 all.data.long <- all.data.long[FeasibleAlternative==1]
 
@@ -412,7 +483,7 @@ rm(carp.time.reg,
    walk.time.reg, 
    bicycle.time.reg)
 
-rm(fuel.pred, reg.car.data, reg.data.walk)
+rm(reg.car.data, reg.data.walk)
 
 ## Saving a copy of the workspace image ##
 ## 
@@ -432,28 +503,29 @@ rm(fuel.pred, reg.car.data, reg.data.walk)
 # Convert car driving price from pence to pounds to get it in line with the other prices
 
 all.data.long[Price<=0, Price:=0]
-all.data.long[Alternative=="Car/van driver", Price:=Price/100]
+all.data.long[Alternative=="Car", Price:=Price/100]
+all.data.long[Alternative=="Car", Price:=Price + exp(LogDistance)*VehFixedCosts]
 # all.data.long <- all.data.long[TripID %in% all.data.long[IsChosenAlternative==1,TripID],]
 
 # Test of replacing with means brekaing down on category - this is the best for the moment until the replace PSUID code works
-
-# all.data.long[,MeanTravelTime:=mean(LogTravelTime, na.rm=TRUE), by=.(Alternative, Region, TripPurpose)]
-# all.data.long[is.na(LogTravelTime)==TRUE, LogTravelTime:=MeanTravelTime]
 # 
-# all.data.long[,MeanPrice:=mean(Price, na.rm=TRUE), by=.(Alternative, Region, TripPurpose)]
+# all.data.long[is.na(LogTravelTime)==FALSE, LTTDecile:=findInterval(LogTravelTime, quantile(LogTravelTime, probs=seq(0.1,1,0.1)))]
+# all.data.long[is.na(Price)==FALSE, PriceDecile:=findInterval(Price, quantile(Price, probs=seq(0.1,1,0.1)))]
+# all.data.long[,MeanTravelTime:=mean(LogTravelTime, na.rm=TRUE), by=.(Alternative, Region, TripPurpose, AgeCategory, DayOfWeek)]
+# all.data.long[is.na(LogTravelTime)==TRUE, LogTravelTime:=MeanTravelTime]
+# all.data.long[,MeanPrice:=mean(Price), by=.(Alternative, Region, TripPurpose, AgeCategory, DayOfWeek)]
 # all.data.long[is.na(Price)==TRUE, Price:=MeanPrice]
 
 #### Creating the sample #### 
 
 # this removes all trip IDs that do not have price and travel time data for each alternative.
 
-incomplete.sets <- all.data.long[is.na(Price)==TRUE | is.na(LogTravelTime)==TRUE,.(TimeNA =length(is.na(LogTravelTime)==TRUE),PriceNA = length(is.na(Price)==TRUE)), by=TripID]
+incomplete.sets <- all.data.long[is.na(Price)==TRUE | is.na(LogTravelTime)==TRUE, length(is.na(LogTravelTime)==TRUE), by=TripID]
 all.data.long <- all.data.long[!(TripID %in% incomplete.sets$TripID)]
+
 
 # all.data.long.ss <- unique(all.data.long[!(TripID %in% all.data.long.cc$TripID), TripID])
 # rm(all.data.long.cc)
-
-library(mlogit)
 
 
 # Taking a subsample of the complete set to train the model
@@ -475,22 +547,45 @@ setnames(all.data.long, "Mobility difficulties summary", "Mobility")
 all.data.long[,SocialClass:=factor(SocialClass)]
 all.data.long[,IncomeQuintiles:=factor(IncomeQuintiles)]
 all.data.long[,Mobility:=factor(Mobility)]
+all.data.long[,Alternative:=factor(Alternative)]
 
-## remove negative prices
+# Select 5000 Individuals
+all.data.long.ss <- all.data.long[!(AgeCategory %in% c("5-10", "11-16", "Pensioner")) & Region %in% c(12,13),.(IndividualID, TripID, IncomeQuintiles, TripPurpose, AgeCategory, Sex, TravelTime, Price, IsChosenAlternative, DrivingLicense, BicycleOwner, Minority, HHoldNumPeople, Alternative, Region)] 
 
-## Setting up the mixed logit ##
 
-# Removing cases without a chosen alternative -- could move this up to the top
+all.data.long.ss[,IID:=c(1:length(unique(IndividualID))), by=IndividualID]
 
-# x <- nrow(all.data.long.ss[Price==0])
-# all.data.long.ss[Price==0, Price:=runif(n=x, min=0, max=0.1)]
+# all.data.long.ss <- data.table(all.data.long.ss)
+# sampleindividuals <- sample(unique(all.data.long.ss$IndividualID), size=432)
+# all.data.long.ss <- all.data.long.ss[IndividualID %in% sampleindividuals,]
 
-all.data.long.ss <- mlogit.data(data=all.data.long[AgeCategory!="5-10",.(TripID, IncomeQuintiles, TripPurpose, AgeCategory, Sex, TravelTime, Price, IsChosenAlternative, DrivingLicense, BicycleOwner, Minority, HHoldNumPeople, Alternative)], 
+# sampletrips <- sample(unique(all.data.long.ss$TripID), size=5000)
+# all.data.long.ss <- all.data.long.ss[TripID %in% sampletrips,]
+# rm(sampleindividuals, sampletrips)
+
+library(mlogit)
+
+all.data.long.ss <- mlogit.data(data=all.data.long.ss, 
                                 choice="IsChosenAlternative", 
                                 shape="long", 
                                 alt.var = "Alternative",
-                                #alt.levels=c("Bus", "Walk", "Bicyle", "Car/van driver", "Car/van passenger", "Rail", "Taxi"), 
-                                chid.var="TripID"
-)
+                                #alt.levels=c("Bus", "Walk", "Bicyle", "Car", "Passenger", "Rail", "Taxi"), 
+                                id.var = "IndividualID",
+                                chid.var="TripID")
+
+
+all.data.long.ss2 <- mlogit.data(data=all.data.long.ss, 
+                                 choice="IsChosenAlternative", 
+                                 shape="long", 
+                                 alt.var = "Alternative",
+                                 #alt.levels=c("Bus", "Walk", "Bicyle", "Car", "Passenger", "Rail", "Taxi"), 
+                                 id.var = "IndividualID",
+                                 chid.var="TripID")
+
+all.data.long.ss$IndividualID <- as.numeric(all.data.long.ss$IndividualID)
 
 save.image("Data.Rda")
+
+
+
+
